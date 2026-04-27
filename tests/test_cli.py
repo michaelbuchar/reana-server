@@ -23,6 +23,7 @@ from reana_db.models import (
     AuditLogAction,
     InteractiveSession,
     Resource,
+    ResourceType,
     RunStatus,
     User,
     UserResource,
@@ -1096,3 +1097,31 @@ def test_quota_set_default_limits_for_user_with_custom_limits(user0, session):
     )
 
     assert "There are no users without quota limits." in result.output
+
+
+def test_quota_replenish_requires_existing_periodic_cadence(user0, session):
+    """Test quota-replenish fails for users without periodic quota cadence."""
+    cpu_user_resource = next(
+        resource
+        for resource in user0.resources
+        if resource.resource.type_ == ResourceType.cpu
+    )
+    cpu_user_resource.quota_period_months = None
+    cpu_user_resource.quota_period_start_at = None
+    session.commit()
+
+    result = CliRunner().invoke(
+        reana_admin,
+        [
+            "quota-replenish",
+            "--admin-access-token",
+            user0.access_token,
+            "-e",
+            user0.email,
+            "--quota-period-start-at",
+            "2026-07-01T00:00:00",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "Set `quota_period_months` first." in result.output

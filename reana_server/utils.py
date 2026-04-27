@@ -924,14 +924,14 @@ def _set_quota_period(
     Only CPU resources are supported for now.
     """
     if resource_type != ResourceType.cpu.name:
-        return "Periodic quota is currently supported only for CPU.", 400, False
+        return "Periodic quota is currently supported only for CPU.", 400, True
 
     if int(bool(user_id)) + int(bool(email)) != 1:
-        return "Exactly one of `user_id` or `email` must be provided.", 400, False
+        return "Exactly one of `user_id` or `email` must be provided.", 400, True
 
     user = _get_user_by_criteria(user_id, email)
     if not user:
-        return "User not found.", 404, False
+        return "User not found.", 404, True
 
     cpu_resource = get_default_quota_resource(ResourceType.cpu.name)
     user_resource = (
@@ -944,20 +944,28 @@ def _set_quota_period(
     )
 
     if not user_resource:
-        return "User CPU quota resource not found.", 404, False
+        return "User CPU quota resource not found.", 404, True
 
     if (
         quota_period_months is not _UNSET
         and quota_period_months is not None
         and quota_period_months <= 0
     ):
-        return "`quota_period_months` must be a positive integer.", 400, False
+        return "`quota_period_months` must be a positive integer.", 400, True
 
     effective_quota_period_months = (
         quota_period_months
         if quota_period_months is not _UNSET
         else user_resource.quota_period_months
     )
+
+    if quota_period_start_at is not _UNSET and effective_quota_period_months is None:
+        return (
+            "Cannot set `quota_period_start_at` for a user without periodic "
+            "quota cadence. Set `quota_period_months` first.",
+            400,
+            True,
+        )
 
     if quota_period_months is not _UNSET:
         user_resource.quota_period_months = quota_period_months
